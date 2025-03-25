@@ -1,5 +1,6 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from rest_framework import status
 from rest_framework import viewsets 
 from .firebase_item_helper import (
     save_item_to_firestore,
@@ -13,7 +14,6 @@ from .firebase_order_helper import (
     get_all_orders_from_firestore,
     get_order_by_id,
     update_order_in_firestore,
-    # delete_order_from_firebase
     delete_order_from_firestore
 )
 
@@ -38,8 +38,8 @@ def save_item(request):
     if "name" not in item_data or "price" not in item_data or "category" not in item_data:
         return Response({"error": "Missing required fields: name, price, category"}, status=400)
 
-    # if not isinstance(item_data["price"], (int, float)):
-    #     return Response({"error": "Price must be a number"}, status=400)
+    if not isinstance(item_data["price"], (int, float)):
+        return Response({"error": "Price must be a number"}, status=400)
 
     item_id = save_item_to_firestore(item_data)
     if item_id:
@@ -72,6 +72,54 @@ def delete_item(request, item_id):
         return Response({"message": "Item deleted successfully"}, status=200)
     else:
         return Response({"error": "Failed to delete item"}, status=500)
+
+@api_view(['GET'])
+def get_items_by_category(request, category):
+    """
+    Get all items that belong to a specific category
+    """
+    items_dict = get_all_items_from_firestore()
+    
+    # Convert the dictionary to a list of items with their ids
+    category_items = []
+    for item_id, item_data in items_dict.items():
+        if item_data.get('category') == category:
+            # Add the id to the item data
+            item_with_id = item_data.copy()
+            item_with_id['id'] = item_id
+            category_items.append(item_with_id)
+    
+    return Response(category_items, status=status.HTTP_200_OK)
+
+    
+
+@api_view(['GET'])
+def get_item_detail(request, item_id):
+    """
+    Get a single item by ID
+    """
+    items = get_all_items_from_firestore()
+    item = next((item for item in items if item.get('id') == item_id), None)
+    
+    if not item:
+        return Response({"error": "Item not found"}, status=status.HTTP_404_NOT_FOUND)
+    
+    return Response(item, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def get_categories(request):
+    """
+    Get all unique categories from items
+    """
+    items_dict = get_all_items_from_firestore()
+    
+    # Extract unique categories from the dictionary structure
+    categories = []
+    for item_id, item_data in items_dict.items():
+        if 'category' in item_data and item_data['category'] not in categories:
+            categories.append(item_data['category'])
+    
+    return Response(categories, status=status.HTTP_200_OK)
 
 
 ### 📌 ORDER CRUD OPERATIONS
@@ -130,22 +178,24 @@ def update_order(request, order_id):
 
 @api_view(['DELETE'])
 def delete_order(request, order_id):
-    success = delete_order_from_firebase(order_id)
+    success = delete_order_from_firestore(order_id)
     if success:
         return Response({"message": "Order deleted successfully"}, status=200)
     else:
         return Response({"error": "Failed to delete order"}, status=500)
 
+# ### 📌 FRONTEND PAGES
+# def login_page(request):
+#     return render(request, 'login/login.html')
 
-### 📌 FRONTEND PAGES
-def home_page(request):
-    return render(request, 'home.html')
+# def home_page(request):
+#     return render(request, 'home/home.html')
 
-def categories_page(request):
-    return render(request, 'categories.html')
+# def category_page(request):
+#     return render(request, 'category/category.html')
 
-def checkout_page(request):
-    return render(request, 'checkout.html')
+# def personalize_page(request):
+#     return render(request, 'personalize/personalize.html')
 
-def personalization_page(request):
-    return render(request, 'personalization.html')
+# def checkout_page(request):
+#     return render(request, 'checkout/checkout.html')
